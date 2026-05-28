@@ -140,3 +140,139 @@ curl -X POST http://127.0.0.1:4010/tweets \
 | `UpdateTweet` | PUT | `/tweets/{tweetId}` |
 | `DeleteTweet` | DELETE | `/tweets/{tweetId}` |
 | `ListTweets` | GET | `/tweets` |
+
+---
+
+## 7. Payment flow simulation (Service A → RabbitMQ → Service B → Postgres)
+
+A second Smithy model ([models/payment.smithy](models/payment.smithy)) defines two
+services and a shared async-message contract:
+
+- **`PaymentGatewayService`** (Service A) — HTTP `POST /payments`, publishes a
+  `PaymentEvent` to RabbitMQ. Lives in [services/tweet-service](services/tweet-service)
+  alongside the Tweet CRUD.
+- **`PaymentProcessorService`** (Service B) — Consumes from RabbitMQ, persists
+  to Postgres, exposes HTTP `GET /payments/{paymentId}` for status. Lives in
+  [services/payment-service](services/payment-service).
+- **`PaymentContractsService`** — Internal Smithy service whose sole purpose is
+  to make the `PaymentEvent` shape reachable so Smithy generates the TypeScript
+  type both producer and consumer import.
+
+### Start everything (one command)
+
+```bash
+docker compose up -d --build
+```
+
+This builds both service images and starts all 4 containers:
+
+| Service | Container | Exposed port | Notes |
+|---|---|---|---|
+| `rabbitmq` | `x-test-rabbitmq` | 5672, 15672 | Management UI: http://localhost:15672 (guest/guest) |
+| `postgres` | `x-test-postgres` | 5432 | DB `payments`, user/pass `postgres/postgres` |
+| `payment-service` | `x-test-payment-service` | 3001 | Runs migrations on start, consumes RabbitMQ |
+| `tweet-service` | `x-test-tweet-service` | 3000 | TweetService + PaymentGateway |
+
+Both Dockerfiles use the **repo root as build context** (Smithy-generated TypeScript lives under `build/smithy/` outside the service folder) and **bundle with esbuild** so the runtime image needs no tsconfig path-mapping support.
+
+### Dockerfile build details
+
+The two service Dockerfiles ([services/tweet-service/Dockerfile](services/tweet-service/Dockerfile),
+[services/payment-service/Dockerfile](services/payment-service/Dockerfile)) are
+**multi-stage** (`builder` → `runtime`) and share the same recipe:
+
+1. **`builder` stage** (node:20-alpine)
+   - `npm install` the service's runtime + dev deps
+   - `npm install --no-save esbuild` (build-only)
+   - Copy generated Smithy packages from `build/smithy/<projection>/typescript-*-codegen/`
+   - Bundle with `esbuild --bundle --platform=node --packages=external --tsconfig=tsconfig.json`
+     - Inlines the path-mapped `@example/*` generated code into a single `dist/index.js`
+     - Keeps `node_modules` deps external (smaller bundle)
+2. **`runtime` stage** (node:20-alpine, slim)
+   - Copies only `package.json`, `node_modules`, and `dist/` from `builder`
+   - Creates a non-root `app` user and `chown`s `/app`
+   - `CMD ["node", "dist/index.js"]` (payment-service also runs `node dist/db/migrate.js` first)
+
+> **Important:** Before building images, you must have run `smithy build` at
+> least once so `build/smithy/typescript-*-codegen/` exists. The
+> [.dockerignore](.dockerignore) whitelists only those generated folders.
+
+#### Prerequisite (only when the Smithy model changes)
+
+```bash
+smithy build
+```
+
+#### Build only (no run)
+
+```bash
+# Build both service images at once (must run from the repo root):
+docker compose build
+
+# Or build a single service:
+docker compose build tweet-service
+docker compose build payment-service
+
+# Force a no-cache rebuild after editing a Dockerfile or generated code:
+docker compose build --no-cache
+```
+
+#### Build directly with `docker build` (without compose)
+
+Each Dockerfile expects the **repo root** as the build context:
+
+```bash
+# From the repository root:
+docker build -f services/tweet-service/Dockerfile   -t x-test/tweet-service:latest   .
+docker build -f services/payment-service/Dockerfile -t x-test/payment-service:latest .
+```
+
+#### Useful runtime commands
+
+```bash
+docker compose up -d --build       # build + start everything in background
+docker compose logs -f tweet-service payment-service   # tail logs
+docker compose restart tweet-service                   # restart one service
+docker compose down                # stop containers (keep volumes)
+docker compose down -v             # stop and wipe Postgres/RabbitMQ data
+```
+
+### Try the flow
+
+```bash
+# 1. Trigger a payment (Service A → RabbitMQ)
+curl -s -X POST http://localhost:3000/payments \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"sergio","amount":9.99,"currency":"USD","description":"Premium tweet"}'
+# → { "paymentId": "<uuid>", "status": "PENDING" }
+
+# 2. Poll status (Service B reads from Postgres)
+curl -s http://localhost:3001/payments/<uuid>
+# eventually → { "status": "COMPLETED", ... }
+```
+
+### Local dev (without Docker for the services)
+
+If you want hot reload, you can still run only the infra in Docker and the
+services on the host:
+
+```bash
+docker compose up -d rabbitmq postgres
+cd services/payment-service && npm install && npm run migrate && npm run dev   # :3001
+cd services/tweet-service   && npm install && npm run dev                      # :3000
+```
+
+### Architecture
+
+```
+              HTTP                AMQP                   SQL
+client ─────────────▶ Service A ──────▶ RabbitMQ ──────▶ Service B ──────▶ Postgres
+                     (tweet-service)   payment.events   (payment-service)
+                                                              │
+                                                              ▼
+                                                       GET /payments/{id}
+```
+
+All wire contracts (HTTP request/response bodies **and** the RabbitMQ message
+envelope) come from the Smithy model — there is no hand-maintained DTO.
+

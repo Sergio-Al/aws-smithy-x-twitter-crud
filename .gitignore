@@ -7,8 +7,16 @@ build/
 # Node
 node_modules/
 
+# TypeScript compiled output (services build via esbuild in Docker / tsc locally)
+dist/
+
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Environment variable files (keep .env.example, ignore real secrets)
+.env
+.env.local
+.env.*.local
 
 # macOS
 .DS_Store

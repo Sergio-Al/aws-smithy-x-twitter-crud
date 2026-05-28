@@ -11,34 +11,111 @@
   },
   "projections": {
     "typescript-client": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.twitter#TweetService"] } }
+      ],
       "plugins": {
         "typescript-client-codegen": {
+          "service": "example.twitter#TweetService",
           "package": "@example/tweet-client",
           "packageVersion": "1.0.0",
           "packageDescription": "Tweet Service TypeScript client",
-          "packageJson": {
-            "license": "MIT"
-          }
+          "packageJson": { "license": "MIT" }
         }
       }
     },
     "typescript-server": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.twitter#TweetService"] } }
+      ],
       "plugins": {
         "typescript-server-codegen": {
+          "service": "example.twitter#TweetService",
           "package": "@example/tweet-server",
           "packageVersion": "1.0.0",
           "packageDescription": "Tweet Service TypeScript server",
-          "packageJson": {
-            "license": "MIT"
-          }
+          "packageJson": { "license": "MIT" }
+        }
+      }
+    },
+    "typescript-payment-gateway-server": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentGatewayService"] } }
+      ],
+      "plugins": {
+        "typescript-server-codegen": {
+          "service": "example.payment#PaymentGatewayService",
+          "package": "@example/payment-gateway-server",
+          "packageVersion": "1.0.0",
+          "packageDescription": "Payment Gateway TypeScript server",
+          "packageJson": { "license": "MIT" }
+        }
+      }
+    },
+    "typescript-payment-gateway-client": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentGatewayService"] } }
+      ],
+      "plugins": {
+        "typescript-client-codegen": {
+          "service": "example.payment#PaymentGatewayService",
+          "package": "@example/payment-gateway-client",
+          "packageVersion": "1.0.0",
+          "packageDescription": "Payment Gateway TypeScript client",
+          "packageJson": { "license": "MIT" }
+        }
+      }
+    },
+    "typescript-payment-processor-server": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentProcessorService"] } }
+      ],
+      "plugins": {
+        "typescript-server-codegen": {
+          "service": "example.payment#PaymentProcessorService",
+          "package": "@example/payment-processor-server",
+          "packageVersion": "1.0.0",
+          "packageDescription": "Payment Processor TypeScript server",
+          "packageJson": { "license": "MIT" }
+        }
+      }
+    },
+    "typescript-payment-contracts-client": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentContractsService"] } }
+      ],
+      "plugins": {
+        "typescript-client-codegen": {
+          "service": "example.payment#PaymentContractsService",
+          "package": "@example/payment-contracts",
+          "packageVersion": "1.0.0",
+          "packageDescription": "Shared async-message contracts (PaymentEvent) for producer/consumer",
+          "packageJson": { "license": "MIT" }
         }
       }
     },
     "openapi": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.twitter#TweetService"] } }
+      ],
       "plugins": {
-        "openapi": {
-          "service": "example.twitter#TweetService"
-        }
+        "openapi": { "service": "example.twitter#TweetService" }
+      }
+    },
+    "openapi-payment-gateway": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentGatewayService"] } }
+      ],
+      "plugins": {
+        "openapi": { "service": "example.payment#PaymentGatewayService" }
+      }
+    },
+    "openapi-payment-processor": {
+      "transforms": [
+        { "name": "includeServices", "args": { "services": ["example.payment#PaymentProcessorService"] } }
+      ],
+      "plugins": {
+        "openapi": { "service": "example.payment#PaymentProcessorService" }
       }
     }
   }

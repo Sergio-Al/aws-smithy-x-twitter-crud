@@ -1,0 +1,21 @@
+# Ignore everything by default; allow only what each Dockerfile copies.
+**
+!services/tweet-service/package.json
+!services/tweet-service/package-lock.json
+!services/tweet-service/tsconfig.json
+!services/tweet-service/src/**
+!services/payment-service/package.json
+!services/payment-service/package-lock.json
+!services/payment-service/tsconfig.json
+!services/payment-service/src/**
+!build/smithy/typescript-server/typescript-server-codegen/**
+!build/smithy/typescript-payment-gateway-server/typescript-server-codegen/**
+!build/smithy/typescript-payment-processor-server/typescript-server-codegen/**
+!build/smithy/typescript-payment-contracts-client/typescript-client-codegen/**
+
+# Re-exclude noise inside the generated packages
+**/node_modules
+**/dist-cjs
+**/dist-es
+**/dist-types
+**/*.tsbuildinfo
